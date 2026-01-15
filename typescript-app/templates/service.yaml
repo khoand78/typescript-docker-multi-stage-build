@@ -1,11 +1,15 @@
+{{- range $name, $app := .Values.apps }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "typescript-app.fullname" . }}
+  name: {{ $name }}
+  namespace: {{ $.Values.namespace }}
 spec:
-  type: {{ .Values.service.type }}
-  ports:
-    - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.service.port }}
+  type: ClusterIP
   selector:
-    app: {{ include "typescript-app.name" . }}
+    app: {{ $name }}
+  ports:
+    - port: {{ $app.port }}
+      targetPort: {{ $app.port }}
+---
+{{- end }}

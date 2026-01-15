@@ -1,8 +1,12 @@
+{{- range $name, $app := .Values.apps }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-    name: {{ include "typescript-app.fullname" . }}
+  name: {{ $name }}-config
+  namespace: {{ $.Values.namespace }}
 data:
-{{- range $key, $value := .Values.config }}
+{{- range $key, $value := $app.config }}
   {{ $key }}: {{ $value | quote }}
+{{- end }}
+---
 {{- end }}

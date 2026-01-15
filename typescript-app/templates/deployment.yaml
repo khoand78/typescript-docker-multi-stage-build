@@ -1,27 +1,29 @@
+{{- range $name, $app := .Values.apps }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "typescript-app.fullname" . }}
+  name: {{ $name }}
+  namespace: {{ $.Values.namespace }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ $app.replicas }}
   selector:
     matchLabels:
-      app: {{ include "typescript-app.name" . }}
+      app: {{ $name }}
   template:
     metadata:
       labels:
-        app: {{ include "typescript-app.name" . }}
-  spec:
-    containers:
-      - name: app
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
-        ports:
-          - containerPort: {{ .Values.service.port }}
-        envFrom:
-          - configMapRef:
-            name: {{ include "typescript-app.fullname" . }}
-          - secretRef:
-            name: {{ include "typescript-app.fullname" . }}
-        resources:
-          {{- toYaml .Values.resources | nindent 12 }}
+        app: {{ $name }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $app.image.repository }}:{{ $app.image.tag }}"
+          imagePullPolicy: {{ $app.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $app.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ $name }}-config
+            - secretRef:
+                name: {{ $name }}-secret
+---
+{{- end }}
