@@ -1,4 +1,4 @@
-name: CI + Build Docker Image
+name: CI + Scan + Build Docker Image
 
 on:
   pull_request:
@@ -9,9 +9,9 @@ on:
       - "v*"
 
 jobs:
-  # -----------------------------
+  # --------------------------------
   # 1. Build & Test (CI)
-  # -----------------------------
+  # --------------------------------
   Build-and-test-npm-package:
     runs-on: ubuntu-latest
 
@@ -34,14 +34,39 @@ jobs:
       - name: Test
         run: npm test
 
-  # -----------------------------
-  # 2. Build & Push Docker Image
-  # -----------------------------
-  Build-and-push-Docker-image:
+  # --------------------------------
+  # 2. Code Scan (SAST)
+  # --------------------------------
+  CodeQL-scan:
     needs: [Build-and-test-npm-package]
     runs-on: ubuntu-latest
 
-    # IMPORTANT: only build images on master or tags
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+  # --------------------------------
+  # 3. Build & Push Docker Image
+  # --------------------------------
+  Build-and-push-Docker-image:
+    needs: [CodeQL-scan]
+    runs-on: ubuntu-latest
+    # only build images when merged on master or tags
     if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
 
     permissions:
@@ -70,3 +95,36 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:${{ github.sha }}
             ghcr.io/${{ github.repository }}:latest
+
+  # --------------------------------
+  # 4. Image Scan (Container Scan)
+  # --------------------------------
+  Trivy-image-scan:
+    needs: [Build-and-push-Docker-image]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
